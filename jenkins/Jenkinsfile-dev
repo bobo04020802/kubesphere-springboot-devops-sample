@@ -29,6 +29,7 @@ pipeline {
         stage ('build target && make docker image') {
             steps {
                 container ('maven') {
+                    sh 'rm -rf /root/.m2'
                     sh 'mvn  -Dmaven.test.skip=true clean package'
                     sh 'docker build -f build/Dockerfile-dev -t $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
                 }
