@@ -1,0 +1,74 @@
+pipeline {
+    agent {
+        node {
+            label 'maven'
+        }
+    }
+
+    parameters {
+        string(name:'TAG_NAME',defaultValue: '',description:'')
+    }
+
+    environment {
+        DOCKER_CREDENTIAL_ID = 'demo-dockerhub-certificate'
+        GITHUB_CREDENTIAL_ID = 'demo-github-certificate'
+        KUBECONFIG_CREDENTIAL_ID = 'demo-deploy-certificate'
+        REGISTRY = 'docker.io'
+        DOCKERHUB_NAMESPACE = 'cqiang1993'
+        GITHUB_ACCOUNT = 'cqiang1993'
+        APP_NAME = 'devops-java-sample'
+    }
+
+    stages {
+        stage ('checkout scm') {
+            steps {
+                checkout(scm)
+            }
+        }
+
+        stage ('build target && make docker image') {
+            steps {
+                container ('maven') {
+                    sh 'mvn  -Dmaven.test.skip=true clean package'
+                    sh 'docker build -f build/Dockerfile-dev -t $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
+                }
+            }
+        }
+
+        stage('push image to dockerhub'){
+           when{
+                branch 'master'
+           }
+           steps{
+                container ('maven') {
+                    withCredentials([usernamePassword(passwordVariable : 'DOCKER_PASSWORD' ,usernameVariable : 'DOCKER_USERNAME' ,credentialsId : "$DOCKER_CREDENTIAL_ID" ,)]) {
+                        sh 'docker tag  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest'
+                        sh 'echo "$DOCKER_PASSWORD" | docker login $REGISTRY -u "$DOCKER_USERNAME" --password-stdin'
+                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER'
+                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest '
+                    }
+                }
+
+           }
+        }
+
+        stage('deploy to dev') {
+            agent {
+                node {
+                    label 'base'
+                }
+            }
+            when{
+                branch 'master'
+            }
+            steps {
+                container('base'){
+                    input(id: 'deploy-to-dev', message: 'deploy to dev?')
+                    withCredentials([kubeconfigFile(credentialsId : "$KUBECONFIG_CREDENTIAL_ID" ,variable : 'KUBECONFIG')]) {
+                        sh 'envsubst < deploy/dev-deploy.yaml |kubectl apply -f -'
+                    }
+                }
+            }
+        }
+    }
+}
