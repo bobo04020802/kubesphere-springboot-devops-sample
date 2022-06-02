@@ -1,74 +1,75 @@
 pipeline {
-    agent {
+    agent { 
         node {
-            label 'maven'
+            label 'maven'  // 使用 maven 创建一个用于构建的代理节点
         }
     }
 
     parameters {
-        string(name:'TAG_NAME',defaultValue: '',description:'')
+        string(name:'TAG_NAME',defaultValue: '',description:'')  // 传参设置 
     }
 
     environment {
-        DOCKER_CREDENTIAL_ID = 'demo-dockerhub-certificate'
-        GITHUB_CREDENTIAL_ID = 'demo-github-certificate'
-        KUBECONFIG_CREDENTIAL_ID = 'demo-deploy-certificate'
-        REGISTRY = 'docker.io'
-        DOCKERHUB_NAMESPACE = 'cqiang1993'
-        GITHUB_ACCOUNT = 'cqiang1993'
-        APP_NAME = 'devops-java-sample'
+        DOCKER_CREDENTIAL_ID = 'demo-dockerhub-certificate'  // 使用第一步的 dockerhub 凭证名称，可以根据自己的设置修改
+        GITHUB_CREDENTIAL_ID = 'demo-github-certificate' // 使用第一步的 github 凭证名称，可以根据自己的设置修改
+        KUBECONFIG_CREDENTIAL_ID = 'demo-deploy-certificate' // 使用第一步的 kubeconfig 凭证名称，可以根据自己的设置修改
+        REGISTRY = 'docker.io' // 默认使用 dockerhub 的仓库地址，可以根据需求改为自己的仓库地址，例如阿里云，青云之类的
+        DOCKERHUB_NAMESPACE = 'cqiang1993' // dockerhub 的仓库名称
+        GITHUB_ACCOUNT = 'cqiang1993' // 自己的 github 的账号名称
+        APP_NAME = 'kubesphere-springboot-devops-sample' // 应用名称可自定义
     }
-
+    // $+environment 里面的值就可以取出上面环境变量
     stages {
-        stage ('checkout scm') {
+        stage ('checkout scm') {   // 流程第一步，拉取源代码
             steps {
                 checkout(scm)
             }
         }
 
-        stage ('build target && make docker image') {
+        stage ('build target && make docker image') { // 流程第二步，构建 jar 包和生成 docker 容器镜像
             steps {
-                container ('maven') {
-                    sh 'mvn clean package'
-                    sh 'docker build -f build/Dockerfile-dev -t $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .'
+                container ('maven') { // 使用 maven 容器
+                    sh 'mvn clean package' // 使用 mvn 打包 springboot 项目
+                    sh 'docker build -f build/Dockerfile-dev -t $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER .' // 制作版本镜像
                 }
             }
         }
 
-        stage('push image to dockerhub'){
-            when{
+        stage('push image to dockerhub'){ // 流程第三步，推送镜像到镜像仓库
+            when{  // 如果当前分支是 master 则进行后面的操作
                 branch 'master'
             }
             steps{
                 container ('maven') {
-                    withCredentials([usernamePassword(passwordVariable : 'DOCKER_PASSWORD' ,usernameVariable : 'DOCKER_USERNAME' ,credentialsId : "$DOCKER_CREDENTIAL_ID" ,)]) {
-                        sh 'docker tag  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest'
-                        sh 'echo "$DOCKER_PASSWORD" | docker login $REGISTRY -u "$DOCKER_USERNAME" --password-stdin'
-                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER'
-                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest '
+                    withCredentials([usernamePassword(passwordVariable : 'DOCKER_PASSWORD' ,usernameVariable : 'DOCKER_USERNAME' ,credentialsId : "$DOCKER_CREDENTIAL_ID" ,)]) {  // 使用凭证
+                        sh 'docker tag  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest' // 为镜像打上 latest 标签
+                        sh 'echo "$DOCKER_PASSWORD" | docker login $REGISTRY -u "$DOCKER_USERNAME" --password-stdin' // 使用凭证登录 dockerhub 仓库
+                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:SNAPSHOT-$BRANCH_NAME-$BUILD_NUMBER' // 推送版本镜像
+                        sh 'docker push  $REGISTRY/$DOCKERHUB_NAMESPACE/$APP_NAME:latest' // 推送 latest 镜像
                     }
                 }
 
             }
         }
 
-        stage('deploy to dev') {
+        stage('deploy to dev') {  // 流程第四步，部署项目到 kubesphere 平台上
             agent {
                 node {
-                    label 'base'
+                    label 'base' // 使用 base 创建一个用于部署的代理节点
                 }
             }
-            when{
+            when{ // 如果当前分支是 master 则进行后面的操作
                 branch 'master'
             }
             steps {
-                container('base'){
-                    input(id: 'deploy-to-dev', message: 'deploy to dev?')
-                    withCredentials([kubeconfigFile(credentialsId : "$KUBECONFIG_CREDENTIAL_ID" ,variable : 'KUBECONFIG')]) {
-                        sh 'envsubst < deploy/dev-deploy.yaml |kubectl apply -f -'
+                container('base'){ // 使用 base 容器
+                    input(id: 'deploy-to-dev', message: 'deploy to dev?') // 中断等待是否部署的指令输入
+                    withCredentials([kubeconfigFile(credentialsId : "$KUBECONFIG_CREDENTIAL_ID" ,variable : 'KUBECONFIG')]) { // 使用 kubeconfig 凭证部署
+                        sh 'envsubst < deploy/dev-deploy.yaml |kubectl apply -f -' // 将环境变量替换并使用 kubectl 部署
                     }
                 }
             }
         }
     }
 }
+
