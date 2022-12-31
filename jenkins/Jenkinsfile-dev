@@ -10,12 +10,12 @@ pipeline {
     }
 
     environment {
-        DOCKER_CREDENTIAL_ID = 'demo-dockerhub-certificate'  // 使用第一步的 dockerhub 凭证名称，可以根据自己的设置修改
-        GITHUB_CREDENTIAL_ID = 'demo-github-certificate' // 使用第一步的 github 凭证名称，可以根据自己的设置修改
-        KUBECONFIG_CREDENTIAL_ID = 'demo-deploy-certificate' // 使用第一步的 kubeconfig 凭证名称，可以根据自己的设置修改
-        REGISTRY = 'docker.io' // 默认使用 dockerhub 的仓库地址，可以根据需求改为自己的仓库地址，例如阿里云，青云之类的
-        DOCKERHUB_NAMESPACE = 'cqiang1993' // dockerhub 的仓库名称
-        GITHUB_ACCOUNT = 'cqiang1993' // 自己的 github 的账号名称
+        DOCKER_CREDENTIAL_ID = 'harbor-v6-login'  // 使用第一步的 dockerhub 凭证名称，可以根据自己的设置修改
+        GITHUB_CREDENTIAL_ID = 'github-token' // 使用第一步的 github 凭证名称，可以根据自己的设置修改
+        KUBECONFIG_CREDENTIAL_ID = 'kubeconfig' // 使用第一步的 kubeconfig 凭证名称，可以根据自己的设置修改
+        REGISTRY = 'core.harbor.domain:30002' // 默认使用 dockerhub 的仓库地址，可以根据需求改为自己的仓库地址，例如阿里云，青云之类的
+        DOCKERHUB_NAMESPACE = 'ovensv6' // dockerhub 的仓库名称
+        GITHUB_ACCOUNT = 'bobo04020802' // 自己的 github 的账号名称
         APP_NAME = 'kubesphere-springboot-devops-sample' // 应用名称可自定义
     }
     // $+environment 里面的值就可以取出上面环境变量
